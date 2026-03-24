@@ -1,5 +1,5 @@
-from . import front_wheels
-from . import back_wheels
+import front_wheels
+import back_wheels
 
 class Picar():
     def __init__(self):
@@ -24,29 +24,29 @@ class Picar():
 def test():
     import time
     car = Picar()
-    try:
-        while True:
-            print("forward")
-            car.forward(30)
-            time.sleep(2)
-            print("backward")
-            car.backward(30)
-            time.sleep(2)
-            print("turn left")
-            car.turn_while_moving(-90, 30, "forward")
-            time.sleep(2)
-            print("turn right")
-            car.turn_while_moving(90, 30, "forward")
-            time.sleep(2)
-            print("turn left")
-            car.turn_while_moving(-90, 30, "backward")
-            time.sleep(2)
-            print("turn right")
-            car.turn_while_moving(90, 30, "backward")
-            time.sleep(2)
 
-    except KeyboardInterrupt:
-        pass
+    print("forward")
+    car.forward(30)
+    time.sleep(2)
+    print("backward")
+    car.backward(30)
+    time.sleep(2)
+    print("turn left")
+    car.turn_while_moving(-90, 30, "forward")
+    time.sleep(2)
+    print("turn right")
+    car.turn_while_moving(90, 30, "forward")
+    time.sleep(2)
+    print("turn left")
+    car.turn_while_moving(-90, 30, "backward")
+    time.sleep(2)
+    print("turn right")
+    car.turn_while_moving(90, 30, "backward")
+    time.sleep(2)
+    
+    car.back_wheels.stop()
+
+
 
 if __name__ == '__main__':
     test()
