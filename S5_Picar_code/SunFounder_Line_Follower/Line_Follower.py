@@ -4,7 +4,8 @@ import math
 import time
 
 class Line_Follower(object):
-	def __init__(self, address=0x11, references=[300, 300, 300, 300, 300]):
+	def __init__(self, address=0x11, references=[150, 150, 150, 150, 150]):
+   
 		self.bus = smbus.SMBus(1)
 		self.address = address
 		self._references = references
@@ -103,4 +104,4 @@ class Line_Follower(object):
 if __name__ == '__main__':
 	lf = Line_Follower()
 	while True:
-		print(lf.read_analog())
+		print(lf.read_digital())
