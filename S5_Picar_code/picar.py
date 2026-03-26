@@ -2,6 +2,7 @@ import front_wheels
 import back_wheels
 import time
 from SunFounder_Line_Follower import Line_Follower
+import ultrasonic
 
 class Picar():
 
@@ -27,6 +28,8 @@ class Picar():
     def __init__(self):
         self.front_wheels = front_wheels.Front_Wheels()
         self.back_wheels = back_wheels.Back_Wheels()
+        self.ultrasonic_sensor = ultrasonic.UltrasonicSensor()
+        self.line_follower = Line_Follower.Line_Follower()
     
     def forward(self, speed):
         self.back_wheels.forward()
@@ -56,10 +59,9 @@ class Picar():
             self.front_wheels.turn(90 + angle)
             self.backward(speed)
             
-    def line_follower(self):
-        lf = Line_Follower.Line_Follower()
+    def line_following(self):
         #print(self.last_turn)
-        status = lf.read_digital()
+        status = self.line_follower.read_digital()
         print(status)
         if status in self.PATTERNS_CENTER:
             print("center")
@@ -109,7 +111,7 @@ def test():
       #print(status)
     try:
       while True:
-        car.line_follower()
+        car.line_following()
         time.sleep(0.2)
         
     except KeyboardInterrupt:
