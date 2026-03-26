@@ -7,6 +7,7 @@ class Picar():
 
     max_speed = 70
     speed_car = 0
+    last_turn = 0
     
     PATTERNS_CENTER = [
     [0, 0, 1, 0, 0],
@@ -57,7 +58,7 @@ class Picar():
             
     def line_follower(self):
         lf = Line_Follower.Line_Follower()
-        
+        #print(self.last_turn)
         status = lf.read_digital()
         print(status)
         if status in self.PATTERNS_CENTER:
@@ -68,21 +69,26 @@ class Picar():
         elif status in self.PATTERNS_SLIGHT_LEFT:
             print("sligth left")
             self.turn_while_moving(-15, self.speed_car, "forward")
+            self.last_turn = -15
             
         elif status in self.PATTERNS_HARD_LEFT:
             print("left")
             self.turn_while_moving(-25, self.speed_car, "forward")
+            self.last_turn = -25
             
         elif status in self.PATTERNS_SLIGHT_RIGHT:
             print("sligth rigth")
             self.turn_while_moving(15, self.speed_car, "forward")
+            self.last_turn = 15
             
         elif status in self.PATTERNS_HARD_RIGHT:
             print("rigth")
             self.turn_while_moving(25, self.speed_car, "forward")
+            self.last_turn = 25
             
         elif status in self.PATTERN_LOST:
-            self.backward(20)
+            self.turn_while_moving((self.last_turn * -1), self.speed_car - 5, "backward")
+            time.sleep(0.2)
             #self.stop()
 
 def test():
@@ -94,15 +100,20 @@ def test():
     
     #car.back_wheels.speed = 40
     car.forward(30)
+    
     #time.sleep(10)
     #lf = Line_Follower.Line_Follower()
     #while True:
     
       #status = lf.read_digital()
       #print(status)
-    while True:
-      car.line_follower()
-      time.sleep(0.2)
+    try:
+      while True:
+        car.line_follower()
+        time.sleep(0.2)
+        
+    except KeyboardInterrupt:
+        car.stop()
     
     #.acceleration()
     #car.forward(3)
@@ -121,5 +132,7 @@ def stop_test():
 
 
 if __name__ == '__main__':
-    test()
-    #stop_test()
+    try:
+      test()
+    finally:
+      stop_test()
