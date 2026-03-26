@@ -12,16 +12,14 @@ class Picar():
     [0, 0, 1, 0, 0],
     [0, 1, 1, 1, 0],
     [0, 1, 0, 1, 0],
-    [0, 1, 1, 0, 0],
-    [0, 0, 1, 1, 0],
     [1, 1, 1, 1, 0],
     [0, 1, 1, 1, 1],
     [1, 1, 1, 1, 1],
     ]
-    PATTERNS_SLIGHT_LEFT = [[0, 1, 0, 0, 0], [1, 1, 0, 0, 0]]
-    PATTERNS_HARD_LEFT = [[1, 0, 0, 0, 0]]
-    PATTERNS_SLIGHT_RIGHT = [[0, 0, 0, 1, 0], [0, 0, 0, 1, 1]]
-    PATTERNS_HARD_RIGHT = [[0, 0, 0, 0, 1]]
+    PATTERNS_SLIGHT_LEFT = [[0, 1, 0, 0, 0], [0, 1, 1, 0, 0]]
+    PATTERNS_HARD_LEFT = [[1, 0, 0, 0, 0], [1, 1, 0, 0, 0]]
+    PATTERNS_SLIGHT_RIGHT = [[0, 0, 0, 1, 0], [0, 0, 1, 1, 0]]
+    PATTERNS_HARD_RIGHT = [[0, 0, 0, 0, 1], [0, 0, 0, 1, 1]]
     PATTERN_LOST = [[0, 0, 0, 0, 0]]
 
     
@@ -50,10 +48,11 @@ class Picar():
     
     def turn_while_moving(self, angle, speed, direction):
         if direction == "forward":
-            self.front_wheels.turn(angle)
+            print("Forward")
+            self.front_wheels.turn(90 + angle)
             self.forward(speed)
         elif direction == "backward":
-            self.front_wheels.turn(angle)
+            self.front_wheels.turn(90 + angle)
             self.backward(speed)
             
     def line_follower(self):
@@ -63,43 +62,48 @@ class Picar():
         print(status)
         if status in self.PATTERNS_CENTER:
             print("center")
-            self.forward(40)
+            self.forward(20)
             self.back_wheels.speed = self.speed_car
             
         elif status in self.PATTERNS_SLIGHT_LEFT:
             print("sligth left")
-            self.turn_while_moving(15, self.speed_car, "forward")
+            self.turn_while_moving(-15, self.speed_car, "forward")
             
         elif status in self.PATTERNS_HARD_LEFT:
             print("left")
-            self.turn_while_moving(30, self.speed_car, "forward")
+            self.turn_while_moving(-25, self.speed_car, "forward")
             
         elif status in self.PATTERNS_SLIGHT_RIGHT:
             print("sligth rigth")
-            self.turn_while_moving(-15, self.speed_car, "forward")
+            self.turn_while_moving(15, self.speed_car, "forward")
             
         elif status in self.PATTERNS_HARD_RIGHT:
             print("rigth")
-            self.turn_while_moving(-30, self.speed_car, "forward")
+            self.turn_while_moving(25, self.speed_car, "forward")
             
         elif status in self.PATTERN_LOST:
-            self.stop()
+            self.backward(20)
+            #self.stop()
 
 def test():
     car = Picar()
-    car.back_wheels.speed = 40
-    car.forward(40)
-    lf = Line_Follower.Line_Follower()
+    #car.turn_while_moving(30,40,"forward")
+    #time.sleep(5)
+    #car.turn_while_moving(-30,40,"forward")
+    #time.sleep(5)
+    
+    #car.back_wheels.speed = 40
+    car.forward(30)
+    #time.sleep(10)
+    #lf = Line_Follower.Line_Follower()
     #while True:
     
       #status = lf.read_digital()
       #print(status)
-    
     while True:
       car.line_follower()
       time.sleep(0.2)
-      
-      
+    
     #.acceleration()
     #car.forward(3)
     #time.sleep(5)
@@ -107,11 +111,15 @@ def test():
     #time.sleep(2)
     #car.forward(90)
     #time.sleep(5)
-    car.stop()
     
     #car.back_wheels.stop()
+    
+def stop_test():
+  car = Picar()
+  car.stop()
 
 
 
 if __name__ == '__main__':
     test()
+    #stop_test()
