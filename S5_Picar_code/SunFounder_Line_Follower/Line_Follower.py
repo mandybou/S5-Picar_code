@@ -1,4 +1,3 @@
-
 import smbus2 as smbus
 import math
 import time
@@ -22,8 +21,8 @@ class Line_Follower(object):
 		if Connection_OK:
 			return raw_result
 		else:
-			return False
 			print("Error accessing %2X" % self.address)
+			return False
 
 	def read_analog(self, trys=5):
 		for _ in range(trys):
@@ -51,6 +50,29 @@ class Line_Follower(object):
 			else:
 				digital_list.append(-1)
 		return digital_list
+
+	def read_position(self):
+		"""
+		Retourne l'erreur de position par rapport au centre de la ligne.
+		Utilise une moyenne pondérée des valeurs analogiques brutes.
+
+		Retourne un float entre -2.0 (ligne à gauche) et +2.0 (ligne à droite).
+		Retourne None si la ligne est perdue (aucun capteur ne détecte).
+		"""
+		analog = self.read_analog()
+
+		# Poids = écart sous la référence (ligne sombre = valeur basse = poids élevé)
+		weights = [max(0, self._references[i] - analog[i]) for i in range(5)]
+
+		total_weight = sum(weights)
+		if total_weight == 0:
+			return None  # ligne perdue
+
+		# Moyenne pondérée : 0.0 = extrême gauche, 4.0 = extrême droite
+		position = sum(i * weights[i] for i in range(5)) / total_weight
+
+		# Centre = 2.0, donc erreur négative = gauche, positive = droite
+		return position - 2.0
 
 	def get_average(self, mount):
 		if not isinstance(mount, int):
@@ -104,4 +126,6 @@ class Line_Follower(object):
 if __name__ == '__main__':
 	lf = Line_Follower()
 	while True:
-		print(lf.read_digital())
+		print("digital :", lf.read_digital())
+		print("position:", lf.read_position())
+		time.sleep(0.1)
