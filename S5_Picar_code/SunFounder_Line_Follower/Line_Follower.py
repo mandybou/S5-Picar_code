@@ -115,6 +115,30 @@ class Line_Follower(object):
 			if lt_status[2] == 1:
 				break
 
+	def calibrate(self, samples=50):
+		"""
+		Calibration en deux étapes :
+		1. Placer les capteurs sur la surface claire (fond) pendant 2 sec
+		2. Placer les capteurs sur la ligne foncée pendant 2 sec
+		La référence est fixée au milieu des deux valeurs mesurées.
+		"""
+		print("Calibration : placez les capteurs sur le FOND CLAIR.")
+		time.sleep(2)
+		white_values = self.get_average(samples)
+		print(f"Fond mesuré : {white_values}")
+
+		print("Calibration : placez les capteurs sur la LIGNE FONCÉE.")
+		time.sleep(2)
+		black_values = self.get_average(samples)
+		print(f"Ligne mesurée : {black_values}")
+
+		# Référence = milieu exact entre les deux pour chaque capteur
+		self._references = [
+			int((white_values[i] + black_values[i]) / 2)
+			for i in range(5)
+		]
+		print(f"Calibration terminée. Références : {self._references}")
+
 	@property
 	def references(self):
 		return self._references

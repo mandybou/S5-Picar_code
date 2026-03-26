@@ -24,7 +24,8 @@ class Picar():
         self.front_wheels = front_wheels.Front_Wheels()
         self.back_wheels = back_wheels.Back_Wheels()
         self.ultrasonic_sensor = ultrasonic_filtre.UltrasonicSensor()
-        self.lf = Line_Follower.Line_Follower()  # renommé pour éviter le conflit avec la méthode
+        self.line_follower = Line_Follower.Line_Follower() 
+        self.line_follower.calibrate() 
 
         self._prev_error = 0.0
         self._integral = 0.0
@@ -62,7 +63,7 @@ class Picar():
         read_position() retourne une erreur entre -2.0 (gauche) et +2.0 (droite).
         La correction est appliquée directement sur l'angle des roues avant.
         """
-        error = self.lf.read_position()
+        error = self.line_follower.read_position()
 
         if error is None:
             # Ligne perdue : on arrête et on remet les roues droites
