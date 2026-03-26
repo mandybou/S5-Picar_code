@@ -9,7 +9,7 @@ class Picar():
     max_speed = 70
     speed_car = 0
     last_turn = 0
-    
+    obstacle_detected = False
     PATTERNS_CENTER = [
     [0, 0, 1, 0, 0],
     [0, 1, 1, 1, 0],
@@ -59,60 +59,92 @@ class Picar():
             self.front_wheels.turn(90 + angle)
             self.backward(speed)
             
-    def line_following(self):
-        #print(self.last_turn)
+    def line_following(self, direction="forward"):
         status = self.line_follower.read_digital()
         print(status)
+
         if status in self.PATTERNS_CENTER:
             print("center")
-            self.forward(20)
-            self.back_wheels.speed = self.speed_car
-            
+            if direction == "forward":
+                self.turn_while_moving(0, self.speed_car, "forward")
+            else:
+                self.turn_while_moving(0, self.speed_car, "backward")
+
         elif status in self.PATTERNS_SLIGHT_LEFT:
-            print("sligth left")
-            self.turn_while_moving(-15, self.speed_car, "forward")
-            self.last_turn = -15
-            
+            print("slight left")
+
+            angle = -15 if direction == "forward" else 15
+            self.turn_while_moving(angle, self.speed_car, direction)
+            self.last_turn = angle
+
         elif status in self.PATTERNS_HARD_LEFT:
             print("left")
-            self.turn_while_moving(-25, self.speed_car, "forward")
-            self.last_turn = -25
-            
+            angle = -25 if direction == "forward" else 25
+            self.turn_while_moving(angle, self.speed_car, direction)
+            self.last_turn = angle
+
         elif status in self.PATTERNS_SLIGHT_RIGHT:
-            print("sligth rigth")
-            self.turn_while_moving(15, self.speed_car, "forward")
-            self.last_turn = 15
-            
+            print("slight right")
+            angle = 15 if direction == "forward" else -15
+            self.turn_while_moving(angle, self.speed_car, direction)
+            self.last_turn = angle
+
         elif status in self.PATTERNS_HARD_RIGHT:
-            print("rigth")
-            self.turn_while_moving(25, self.speed_car, "forward")
-            self.last_turn = 25
-            
+            print("right")
+            angle = 25 if direction == "forward" else -25
+            self.turn_while_moving(angle, self.speed_car, direction)
+            self.last_turn = angle
+
         elif status in self.PATTERN_LOST:
-            self.turn_while_moving((self.last_turn * -1), self.speed_car - 5, "backward")
+            recovery_direction = "backward" if direction == "forward" else "forward"
+            self.turn_while_moving((self.last_turn * -1), self.speed_car - 5, recovery_direction)
             time.sleep(0.2)
-            #self.stop()
+
+    def obstacle_detection(self):
+        distance = self.ultrasonic_sensor.read_distance()
+        if distance == None:
+            self.obstacle_detected = False
+        else:
+            self.obstacle_detected = True
+
+
 
 def test():
     car = Picar()
-    #car.turn_while_moving(30,40,"forward")
-    #time.sleep(5)
-    #car.turn_while_moving(-30,40,"forward")
-    #time.sleep(5)
-    
-    #car.back_wheels.speed = 40
     car.forward(30)
-    
-    #time.sleep(10)
-    #lf = Line_Follower.Line_Follower()
-    #while True:
-    
-      #status = lf.read_digital()
-      #print(status)
+    state = 0
     try:
       while True:
-        car.line_following()
         time.sleep(0.2)
+        match state:
+            case 0: #etat 0 : Avancer et suivre la ligne
+                print("state 0")
+                car.obstacle_detection()
+                car.line_following()
+                #time.sleep(0.2)
+                if car.obstacle_detected:
+                    #car.stop()
+                    #time.sleep(1)
+                    state = 1
+
+            case 1: #etat 1 : Si obstacle detecte, descelerrer jusqua 10 cm
+                print("state 1")
+                car.line_following()
+                if car.ultrasonic_sensor.read_distance() <= 10:
+                    car.stop()
+                    time.sleep(1)
+                    state = 2
+            case 2: #etat 2: reculer jusqua 30 cm 
+                print("state 2")
+                if car.ultrasonic_sensor.read_distance() < 30:
+                    car.line_following("backward")
+                    #time.sleep(0.2)
+                else:
+                    car.stop()
+                    time.sleep(1)
+                    state = 3
+
+        #etat 4: Evitement d'obstacle
         
     except KeyboardInterrupt:
         car.stop()
