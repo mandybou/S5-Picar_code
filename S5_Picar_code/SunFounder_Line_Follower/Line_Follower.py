@@ -1,14 +1,14 @@
-
 import smbus2 as smbus
 import math
 import time
 
 class Line_Follower(object):
-	def __init__(self, address=0x11, references=[150, 150, 150, 150, 150]):
-   
+	def __init__(self, address=0x11, references=None):
 		self.bus = smbus.SMBus(1)
 		self.address = address
-		self._references = references
+		self._references = references if references is not None else [150, 150, 150, 150, 150]
+		self._white_values = [0, 0, 0, 0, 0]
+		self._black_values = [0, 0, 0, 0, 0]
 
 	def read_raw(self):
 		for i in range(0, 5):
@@ -23,7 +23,6 @@ class Line_Follower(object):
 			return raw_result
 		else:
 			return False
-			print("Error accessing %2X" % self.address)
 
 	def read_analog(self, trys=5):
 		for _ in range(trys):
@@ -34,74 +33,57 @@ class Line_Follower(object):
 					high_byte = raw_result[i*2] << 8
 					low_byte = raw_result[i*2+1]
 					analog_result[i] = high_byte + low_byte
-					if analog_result[i] > 1024:
-						continue
 				return analog_result
-		else:
-			raise IOError("Line follower read error. Please check the wiring.")
+		raise IOError("Line follower read error. Please check the wiring.")
 
-	def read_digital(self):	
+	def read_digital(self):
 		lt = self.read_analog()
 		digital_list = []
-		for i in range(0, 5):
-			if lt[i] > self._references[i]:
-				digital_list.append(0)
-			elif lt[i] < self._references[i]:
-				digital_list.append(1)
+
+		for i in range(5):
+			# Si la ligne noire donne des valeurs plus petites que le fond blanc
+			if self._black_values[i] < self._white_values[i]:
+				digital_list.append(1 if lt[i] < self._references[i] else 0)
+			# Si jamais c'est l'inverse sur ton capteur
 			else:
-				digital_list.append(-1)
+				digital_list.append(1 if lt[i] > self._references[i] else 0)
+
 		return digital_list
 
 	def get_average(self, mount):
 		if not isinstance(mount, int):
-			raise ValueError("Mount must be interger")
+			raise ValueError("Mount must be integer")
 		average = [0, 0, 0, 0, 0]
 		lt_list = [[], [], [], [], []]
-		for times in range(0, mount):
+		for _ in range(mount):
 			lt = self.read_analog()
-			for lt_id in range(0, 5):
+			for lt_id in range(5):
 				lt_list[lt_id].append(lt[lt_id])
-		for lt_id in range(0, 5):
-			average[lt_id] = int(math.fsum(lt_list[lt_id])/mount)
+		for lt_id in range(5):
 		return average
 
-	def found_line_in(self, timeout):
-		if isinstance(timeout, int) or isinstance(timeout, float):
-			pass
-		else:
-			raise ValueError("timeout must be interger or float")
-		time_start = time.time()
-		time_during = 0
-		while time_during < timeout:
-			lt_status = self.read_digital()
-			result = 0
-			if 1 in lt_status:
-				return lt_status
-			time_now = time.time()
-			time_during = time_now - time_start
-		return False
+	def calibrate(self, samples=50):
+		print("Calibration : placez les capteurs sur le FOND CLAIR.")
+		time.sleep(2)
+		self._white_values = self.get_average(samples)
+		print(f"Fond mesuré : {self._white_values}")
 
-	def wait_tile_status(self, status):
-		while True:
-			lt_status = self.read_digital()
-			if lt_status in status:
-				break
+		print("Calibration : placez les capteurs sur la LIGNE FONCÉE.")
+		time.sleep(2)
+		self._black_values = self.get_average(samples)
+		print(f"Ligne mesurée : {self._black_values}")
 
-	def wait_tile_center(self):
-		while True:
-			lt_status = self.read_digital()
-			if lt_status[2] == 1:
-				break
+		self._references = [
+			int((self._white_values[i] + self._black_values[i]) / 2)
+			for i in range(5)
+		]
+
+		print(f"Calibration terminée. Références : {self._references}")
 
 	@property
 	def references(self):
 		return self._references
-	
+
 	@references.setter
 	def references(self, value):
 		self._references = value
-
-if __name__ == '__main__':
-	lf = Line_Follower()
-	while True:
-		print(lf.read_digital())
