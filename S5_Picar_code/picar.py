@@ -31,7 +31,6 @@ class Picar():
         self.back_wheels = back_wheels.Back_Wheels()
         self.ultrasonic_sensor = ultrasonic.UltrasonicSensor()
         self.line_follower = Line_Follower.Line_Follower()
-        self.line_follower.calibrate()
     
     def forward(self, speed):
         self.back_wheels.forward()
