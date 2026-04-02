@@ -60,6 +60,7 @@ class Line_Follower(object):
 			for lt_id in range(5):
 				lt_list[lt_id].append(lt[lt_id])
 		for lt_id in range(5):
+			average[lt_id] = int(math.fsum(lt_list[lt_id]) / mount)
 		return average
 
 	def calibrate(self, samples=50):
