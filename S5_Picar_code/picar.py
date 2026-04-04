@@ -7,21 +7,22 @@ import ultrasonic
 
 class Picar():
 
-    max_speed = 70
+    max_speed = 25
     speed_car = 0
-    last_turn = 0
+    last_turn = 15
+    lost_counter = 0
     obstacle_detected = False
     PATTERNS_CENTER = [
     [0, 0, 1, 0, 0],
-    [0, 1, 1, 1, 0],
-    [0, 1, 0, 1, 0],
-    [1, 1, 1, 1, 0],
-    [0, 1, 1, 1, 1],
-    [1, 1, 1, 1, 1],
+    [0, 1, 1, 1, 0]
+    #[0, 1, 0, 1, 0],
+    #[1, 1, 1, 1, 0],
+    #[0, 1, 1, 1, 1],
+    #[1, 1, 1, 1, 1],
     ]
-    PATTERNS_SLIGHT_LEFT = [[0, 1, 0, 0, 0], [0, 1, 1, 0, 0]]
+    PATTERNS_SLIGHT_LEFT = [[0, 1, 1, 0, 0], [0, 1, 0, 0, 0]]
     PATTERNS_HARD_LEFT = [[1, 0, 0, 0, 0], [1, 1, 0, 0, 0]]
-    PATTERNS_SLIGHT_RIGHT = [[0, 0, 0, 1, 0], [0, 0, 1, 1, 0]]
+    PATTERNS_SLIGHT_RIGHT = [[0, 0, 1, 1, 0], [0, 0, 0, 1, 0]]
     PATTERNS_HARD_RIGHT = [[0, 0, 0, 0, 1], [0, 0, 0, 1, 1]]
     PATTERN_LOST = [[0, 0, 0, 0, 0]]
 
@@ -67,9 +68,9 @@ class Picar():
         if status in self.PATTERNS_CENTER:
             print("center")
             if direction == "forward":
-                self.turn_while_moving(0, self.speed_car, "forward")
+              self.turn_while_moving(0, self.speed_car, "forward")
             else:
-                self.turn_while_moving(0, self.speed_car, "backward")
+              self.turn_while_moving(0, self.speed_car, "backward")
 
         elif status in self.PATTERNS_SLIGHT_LEFT:
             print("slight left")
@@ -79,8 +80,8 @@ class Picar():
             self.last_turn = angle
 
         elif status in self.PATTERNS_HARD_LEFT:
-            print("left")
-            angle = -25 if direction == "forward" else 25
+            print("hard left")
+            angle = -25 if direction == "forward" else 40
             self.turn_while_moving(angle, self.speed_car, direction)
             self.last_turn = angle
 
@@ -91,33 +92,49 @@ class Picar():
             self.last_turn = angle
 
         elif status in self.PATTERNS_HARD_RIGHT:
-            print("right")
-            angle = 25 if direction == "forward" else -25
+            print("hard right")
+            angle = 25 if direction == "forward" else -40
             self.turn_while_moving(angle, self.speed_car, direction)
             self.last_turn = angle
 
         elif status in self.PATTERN_LOST:
-            recovery_direction = "backward" if direction == "forward" else "forward"
-            self.turn_while_moving((self.last_turn * -1), self.speed_car - 5, recovery_direction)
-            time.sleep(0.2)
+            print("lost")
+            if self.lost_counter >= 2:
+              recovery_direction = "backward" if direction == "forward" else "forward"
+              self.stop()
+              self.forward(0)
+              time.sleep(0.4)
+              self.turn_while_moving((self.last_turn * -1), self.max_speed - 5, recovery_direction)
+              time.sleep(0.4)
+              self.stop()
+              self.forward(0)
+              time.sleep(0.4)
+              self.turn_while_moving(self.last_turn, self.max_speed - 5, direction)
+              time.sleep(0.1)
+              self.lost_counter = 0
+              self.speed_car = self.max_speed
+            else:
+              self.lost_counter+=1
+            
 
     def obstacle_detection(self):
         distance = self.ultrasonic_sensor.read_distance()
-        if distance == None:
-            self.obstacle_detected = False
+        if distance is not None and distance < 30:
+          self.obstacle_detected = True
         else:
-            self.obstacle_detected = True
+          self.obstacle_detected = False
 
 
 
 def test():
     car = Picar()
-    car.forward(30)
+    car.forward(car.max_speed)
     state = 0
 
     try:
       while True:
         time.sleep(0.2)
+        print(car.speed_car)
         match state:
             case 0: #etat 0 : Avancer et suivre la ligne
                 print("state 0")
@@ -132,9 +149,12 @@ def test():
             case 1: #etat 1 : Si obstacle detecte, descelerrer jusqua 10 cm
                 print("state 1")
                 car.line_following()
-                if car.ultrasonic_sensor.read_distance() <= 10:
+                distance = car.ultrasonic_sensor.read_distance()
+                if distance is None:
+                    state = 1
+                elif distance <= 10:
                     car.stop()
-                    time.sleep(1)
+                    time.sleep(0.5)
                     state = 2
                     
             case 2: #etat 2: reculer jusqua 30 cm 
@@ -144,30 +164,30 @@ def test():
                     #time.sleep(0.2)
                 else:
                     car.stop()
-                    time.sleep(1)
+                    time.sleep(0.5)
                     print("state 3")
                     state = 3
             
-            case 3:
+            case 3:  #tourner a droite
                 start = time.time()
-                car.speed = round(car.max_speed/3)
+                car.speed_car = round(car.max_speed * 0.8)
                 print(start)
                 while((time.time() - start) <= 2.75):
                   print("in while")
-                  car.turn_while_moving(30, car.speed, "forward")
+                  car.turn_while_moving(30, car.speed_car, "forward")
                   time.sleep(0.2)
                   
                 car.stop()
                 state = 4
                 
-            case 4:
+            case 4: #contourner lobjet
                 print("state 4")
-                car.speed = round(car.max_speed/3)
-                print(car.line_follower.read_digital() == car.PATTERN_LOST)
+                car.speed_car = round(car.max_speed * 0.8)
+                print(car.line_follower.read_digital() in car.PATTERN_LOST)
                 while(car.line_follower.read_digital() in car.PATTERN_LOST):
                   print(car.line_follower.read_digital())
                   print("state 4")
-                  car.turn_while_moving(-15, car.speed, "forward")
+                  car.turn_while_moving(-15, car.speed_car, "forward")
                   time.sleep(0.2)
                   
                 state = 0

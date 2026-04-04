@@ -43,10 +43,10 @@ class Line_Follower(object):
 		for i in range(5):
 			# Si la ligne noire donne des valeurs plus petites que le fond blanc
 			if self._black_values[i] < self._white_values[i]:
-				digital_list.append(1 if lt[i] < self._references[i] else 0)
+				digital_list.append(1 if lt[i] > self._references[i] else 0)
 			# Si jamais c'est l'inverse sur ton capteur
 			else:
-				digital_list.append(1 if lt[i] > self._references[i] else 0)
+				digital_list.append(1 if lt[i] < self._references[i] else 0)
 
 		return digital_list
 
@@ -88,3 +88,9 @@ class Line_Follower(object):
 	@references.setter
 	def references(self, value):
 		self._references = value
+   
+   
+if __name__ == '__main__':
+    lf = Line_Follower()
+    while True:
+        print(lf.read_digital())
