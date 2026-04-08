@@ -7,7 +7,7 @@ import ultrasonic
 
 class Picar():
 
-    max_speed = 25
+    max_speed = 30
     speed_car = 0
     last_turn = 15
     lost_counter = 0
@@ -42,11 +42,18 @@ class Picar():
         self.back_wheels.backward()
         self.back_wheels.speed = speed
         
-    def acceleration(self):
-        while(self.speed_car < self.max_speed):
-            self.speed_car += 1
+    def acceleration(self, speed):
+        while(self.speed_car < speed):
+            self.speed_car += 2
             self.forward(self.speed_car)
-            time.sleep(0.1)
+            time.sleep(0.2)
+            
+    def decceleration(self, speed):
+        while(self.speed_car > speed):
+            self.speed_car -= 2
+            self.forward(self.speed_car)
+            time.sleep(0.2)
+            
         
         
     def stop(self):
@@ -67,53 +74,67 @@ class Picar():
 
         if status in self.PATTERNS_CENTER:
             print("center")
+            self.lost_counter = 0
             if direction == "forward":
-              self.turn_while_moving(0, self.speed_car, "forward")
+              self.turn_while_moving(0, self.max_speed, "forward")
             else:
-              self.turn_while_moving(0, self.speed_car, "backward")
+              self.turn_while_moving(0, self.max_speed, "backward")
 
         elif status in self.PATTERNS_SLIGHT_LEFT:
             print("slight left")
-
+            self.lost_counter = 0
             angle = -15 if direction == "forward" else 15
-            self.turn_while_moving(angle, self.speed_car, direction)
+            self.turn_while_moving(angle, self.max_speed, direction)
             self.last_turn = angle
 
         elif status in self.PATTERNS_HARD_LEFT:
             print("hard left")
             angle = -25 if direction == "forward" else 40
-            self.turn_while_moving(angle, self.speed_car, direction)
+            self.turn_while_moving(angle, self.max_speed - 5, direction)
             self.last_turn = angle
 
         elif status in self.PATTERNS_SLIGHT_RIGHT:
             print("slight right")
+            self.lost_counter = 0
             angle = 15 if direction == "forward" else -15
-            self.turn_while_moving(angle, self.speed_car, direction)
+            self.turn_while_moving(angle, self.max_speed, direction)
             self.last_turn = angle
 
         elif status in self.PATTERNS_HARD_RIGHT:
             print("hard right")
+            self.lost_counter = 0
             angle = 25 if direction == "forward" else -40
-            self.turn_while_moving(angle, self.speed_car, direction)
+            self.turn_while_moving(angle, self.max_speed - 5, direction)
             self.last_turn = angle
 
         elif status in self.PATTERN_LOST:
+            print(self.lost_counter)
             print("lost")
-            if self.lost_counter >= 2:
-              recovery_direction = "backward" if direction == "forward" else "forward"
+            if self.lost_counter >= 1:
+              #recovery_direction = "backward" if direction == "forward" else "forward"
+              self.decceleration(17)
               self.stop()
-              self.forward(0)
+              #self.forward(0)
+              
               time.sleep(0.4)
-              self.turn_while_moving((self.last_turn * -1), self.max_speed - 5, recovery_direction)
-              time.sleep(0.4)
+              #cmpt = 0
+              #print(recovery_direction)
+              while(self.line_follower.read_digital() in self.PATTERN_LOST):
+                #cmpt+
+                if self.speed_car <= 25:
+                  self.speed_car +=2
+                self.turn_while_moving((self.last_turn * -1), self.speed_car, "backward")
+                time.sleep(0.4)
+                
+              
               self.stop()
-              self.forward(0)
-              time.sleep(0.4)
-              self.turn_while_moving(self.last_turn, self.max_speed - 5, direction)
+              self.front_wheels.turn(90 + self.last_turn)
+              #self.acceleration(25)
               time.sleep(0.1)
               self.lost_counter = 0
-              self.speed_car = self.max_speed
+              #self.speed_car = self.max_speed
             else:
+              #self.turn_while_moving((self.last_turn), self.max_speed - 7, direction)
               self.lost_counter+=1
             
 
