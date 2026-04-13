@@ -98,7 +98,7 @@ class Picar:
 
         # PID tuned for the hardware - adjust kp/ki/kd to taste
         #self.line_follower.calibrate() 
-        self.pid = PID(kp=18.0, ki=0.5, kd=8.0, output_limits=(-65, 65))
+        self.pid = PID(kp=18.0, ki=0.0, kd=0.0, output_limits=(-65, 65))
 
     # ------------------------------------------------------------------
     # Low-level motion
@@ -154,25 +154,22 @@ class Picar:
     
     def _compute_line_error(self, analog_values):
         weights = [-2, -1, 0, 1, 2]
+    
+        min_val = min(analog_values)
+        max_val = max(analog_values)
+    
+        if max_val - min_val < 50:
+            return None  # no contrast ? lost
+    
         weighted_sum = 0
         total = 0
     
         for i in range(5):
-            raw = analog_values[i]
-            white = self.line_follower._white_values[i]
-            black = self.line_follower._black_values[i]
-    
-            span = white - black
-            if span == 0:
-                normalized = 0
-            else:
-                # 0.0 = sur le fond blanc, 1.0 = sur la ligne noire
-                normalized = max(0.0, min(1.0, (raw - black) / span))
-    
+            normalized = (max_val - analog_values[i]) / (max_val - min_val)
             weighted_sum += normalized * weights[i]
             total += normalized
     
-        if total < 0.2:   # seuil : aucun capteur ne voit vraiment la ligne
+        if total == 0:
             return None
     
         return weighted_sum / total
@@ -186,7 +183,9 @@ class Picar:
     
         # None means line is lost (all weights zero)
         analog = self.line_follower.read_analog()
+        print(analog)
         error = self._compute_line_error(analog)
+        print(error)
     
         if error is None:
             return self._handle_lost(backward)
@@ -243,10 +242,13 @@ def run():
             match state:
                 # -- 0: follow line -----------------------------------------
                 case 0:
-                    if car.is_stop_pattern():
-                        _gradual_stop(car)
-                        time.sleep(10)
-                        continue
+                    print("case 0")
+                    
+                    #if car.is_stop_pattern():
+                      #  print("car stop")
+                      #  _gradual_stop(car)
+                        #time.sleep(10)
+                        #continue
 
                     distance = car._read_distance()
                     if distance is not None and distance < car.OBSTACLE_DIST:
@@ -262,6 +264,7 @@ def run():
                     car.line_following()
                     car.accel_state = AccelState.DECEL_FORWARD
                     car.target_speed = 19
+                    print("case 1")
 
                     distance = car._read_distance()
                     if distance is None:
@@ -318,6 +321,7 @@ def run():
 
                 # -- 5: lost - slow down ------------------------------------
                 case 5:
+                    print("case 5")
                     car.accel_state = AccelState.DECEL_FORWARD
                     car.target_speed = 10
                     if car.speed <= car.target_speed:
@@ -327,6 +331,7 @@ def run():
 
                 # -- 6: reverse to reacquire line ---------------------------
                 case 6:
+                    print("case 6")
                     status = car._read_line()
                     if status != PATTERN_LOST and any(status):
                         car.stop()

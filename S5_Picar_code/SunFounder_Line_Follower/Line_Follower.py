@@ -8,7 +8,7 @@ class Line_Follower(object):
 		self.address = address
 		self._references = references if references is not None else [150, 150, 150, 150, 150]
 		self._white_values = [200, 200, 200, 200, 200]
-		self._black_values = [60, 60, 60, 60, 60]
+		self._black_values = [100, 100, 100, 100, 100]
     #self.calibrate()
 
 	def read_raw(self):
