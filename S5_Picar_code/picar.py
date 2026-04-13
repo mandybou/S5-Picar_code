@@ -77,11 +77,11 @@ PATTERN_LOST = (0, 0, 0, 0, 0)
 # ---------------------------------------------------------------------------
 
 class Picar:
-    CRUISE_SPEED    = 20   # normal forward cruising speed
+    CRUISE_SPEED    = 25   # normal forward cruising speed
     OBSTACLE_DIST   = 30   # cm - start slowing
     STOP_DIST       = 10   # cm - full stop
     BYPASS_DIST     = 23   # cm - back up until here
-    LOST_PATIENCE   = 5    # iterations before declaring truly lost
+    LOST_PATIENCE   = 20    # iterations before declaring truly lost
 
     def __init__(self):
         self.front_wheels     = front_wheels.Front_Wheels()
@@ -99,6 +99,7 @@ class Picar:
         # PID tuned for the hardware - adjust kp/ki/kd to taste
         #self.line_follower.calibrate() 
         self.pid = PID(kp=18.0, ki=0.0, kd=0.0, output_limits=(-65, 65))
+        self._last_reliable_error = 0.0
 
     # ------------------------------------------------------------------
     # Low-level motion
@@ -119,6 +120,18 @@ class Picar:
     def _steer(self, angle: float):
         """Translate a signed angle offset into a wheel angle (90 = straight)."""
         self.front_wheels.turn(int(90 + angle))
+        
+    def _tick_sharp_turn(self, lost_counter, error):
+        # Optional: implement sharper turns by temporarily reducing speed on one wheel
+        print("sharp_turn")
+        if error > 0:
+            self.back_wheels.set_speed_individual(
+                self.speed - lost_counter, self.speed + lost_counter
+            )
+        elif error < 0:
+            self.back_wheels.set_speed_individual(
+                self.speed + lost_counter, self.speed - lost_counter
+            )
 
     # ------------------------------------------------------------------
     # Acceleration helpers
@@ -155,7 +168,7 @@ class Picar:
     def is_stop_pattern_analog(self, analog):
         THRESHOLD = 150  # adjust if needed
         black_count = sum(1 for v in analog if v < THRESHOLD)
-        return black_count >= 4
+        return black_count >= 3
         
     def is_lost_pattern_analog(self, analog):
         THRESHOLD = 150  # adjust if needed
@@ -202,7 +215,8 @@ class Picar:
             self._lost_counter += 1
 
             if self._lost_counter < self.LOST_PATIENCE:
-                error = self._last_error  # keep going same direction
+                error = self._last_error * (1 + 0.3 * self._lost_counter)  # keep going same direction
+                self._tick_sharp_turn(self._lost_counter, error)
             else:
                 return self._handle_lost(backward)
         else:
@@ -214,6 +228,9 @@ class Picar:
 
         self._last_error = error
         angle = self.pid.compute(error)
+        if error is not None:
+            self._lost_counter = 0
+            self._last_reliable_error = error  # ? only update when line is real
         self._steer(angle)
 
         self.accel_state = AccelState.ACCEL_BACKWARD if backward else AccelState.ACCEL_FORWARD
@@ -261,6 +278,7 @@ def run():
                     analog = car.line_follower.read_analog()
 
                     if car.is_stop_pattern_analog(analog):
+                        print("stop")
                         _gradual_stop(car)
                         time.sleep(10)
                         continue
@@ -347,9 +365,7 @@ def run():
                 # -- 6: reverse to reacquire line ---------------------------
                 case 6:
                     print("case 6")
-                    #status = car._read_line()
                     analog = car.line_follower.read_analog()
-                    # status != PATTERN_LOST and any(status):
                     if not car.is_lost_pattern_analog(analog):
                         car.stop()
                         time.sleep(0.5)
@@ -358,8 +374,8 @@ def run():
                     else:
                         car.accel_state = AccelState.ACCEL_BACKWARD
                         car.target_speed = 22
-                        # Reverse with mirrored last-known error
-                        angle = float(np.clip(-car._last_error * 18, -65, 65))
+                        # Use last *reliable* error, negated for reverse direction
+                        angle = float(np.clip(-car._last_reliable_error * 18, -65, 65))
                         car._steer(angle)
                         car._set_speed(car.speed, backward=True)
 

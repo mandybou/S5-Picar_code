@@ -62,11 +62,22 @@ class Back_Wheels(object):
 		if self._DEBUG:
 			print(self._DEBUG_INFO,message)
 
+    
+	def set_speed_individual(self, left_speed, right_speed):
+		left_speed = max(0, min(100, left_speed))
+		right_speed = max(0, min(100, right_speed))
+		self.left_wheel.speed = left_speed
+		self.right_wheel.speed = right_speed
+   
+		self.left_wheel.forward()
+		self.right_wheel.forward()
+
 	def forward(self):
 		''' Move both wheels forward '''
 		self.left_wheel.forward()
 		self.right_wheel.forward()
 		self._debug_('Running forward')
+   
 
 	def backward(self):
 		''' Move both wheels backward '''
