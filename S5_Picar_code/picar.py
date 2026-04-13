@@ -77,7 +77,7 @@ PATTERN_LOST = (0, 0, 0, 0, 0)
 # ---------------------------------------------------------------------------
 
 class Picar:
-    CRUISE_SPEED    = 25   # normal forward cruising speed
+    CRUISE_SPEED    = 35   # normal forward cruising speed
     OBSTACLE_DIST   = 30   # cm - start slowing
     STOP_DIST       = 10   # cm - full stop
     BYPASS_DIST     = 23   # cm - back up until here
@@ -98,7 +98,7 @@ class Picar:
 
         # PID tuned for the hardware - adjust kp/ki/kd to taste
         #self.line_follower.calibrate() 
-        self.pid = PID(kp=18.0, ki=0.0, kd=0.0, output_limits=(-65, 65))
+        self.pid = PID(kp=18.0, ki=0.0, kd=0.05, output_limits=(-65, 65))
         self._last_reliable_error = 0.0
 
     # ------------------------------------------------------------------
@@ -168,7 +168,7 @@ class Picar:
     def is_stop_pattern_analog(self, analog):
         THRESHOLD = 150  # adjust if needed
         black_count = sum(1 for v in analog if v < THRESHOLD)
-        return black_count >= 3
+        return black_count >= 4
         
     def is_lost_pattern_analog(self, analog):
         THRESHOLD = 150  # adjust if needed
@@ -210,17 +210,16 @@ class Picar:
         analog = self.line_follower.read_analog()
         error = self._compute_line_error(analog)
 
-        # ---------- LOST HANDLING WITH TOLERANCE ----------
         if error is None:
             self._lost_counter += 1
-
             if self._lost_counter < self.LOST_PATIENCE:
-                error = self._last_error * (1 + 0.3 * self._lost_counter)  # keep going same direction
+                error = self._last_error * (1 + 0.3 * self._lost_counter)
                 self._tick_sharp_turn(self._lost_counter, error)
             else:
                 return self._handle_lost(backward)
         else:
             self._lost_counter = 0
+            self._last_reliable_error = error  # ? raw, unflipped, only when real
 
         # ---------- NORMAL CONTROL ----------
         if backward:
@@ -228,9 +227,6 @@ class Picar:
 
         self._last_error = error
         angle = self.pid.compute(error)
-        if error is not None:
-            self._lost_counter = 0
-            self._last_reliable_error = error  # ? only update when line is real
         self._steer(angle)
 
         self.accel_state = AccelState.ACCEL_BACKWARD if backward else AccelState.ACCEL_FORWARD
@@ -289,8 +285,8 @@ def run():
                         continue
 
                     lost = car.line_following()
-                    if lost:
-                        state = 5
+                    #if lost:
+                        #state = 5
 
                 # -- 1: obstacle ahead - slow to STOP_DIST ------------------
                 case 1:
