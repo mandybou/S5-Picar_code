@@ -7,8 +7,9 @@ class Line_Follower(object):
 		self.bus = smbus.SMBus(1)
 		self.address = address
 		self._references = references if references is not None else [150, 150, 150, 150, 150]
-		self._white_values = [0, 0, 0, 0, 0]
-		self._black_values = [0, 0, 0, 0, 0]
+		self._white_values = [200, 200, 200, 200, 200]
+		self._black_values = [60, 60, 60, 60, 60]
+    #self.calibrate()
 
 	def read_raw(self):
 		for i in range(0, 5):
