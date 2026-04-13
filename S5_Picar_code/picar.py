@@ -143,35 +143,48 @@ class Picar:
     # Sensor reads
     # ------------------------------------------------------------------
 
-    def _read_line(self) -> tuple:
-        return tuple(self.line_follower.read_digital())
+    # def _read_line(self) -> tuple:
+    #     return tuple(self.line_follower.read_digital())
 
     def _read_distance(self) -> float | None:
         return self.ultrasonic.read_distance()
 
-    def is_stop_pattern(self) -> bool:
-        return self._read_line() in PATTERN_STOP
+    # def is_stop_pattern(self) -> bool:
+    #     return self._read_line() in PATTERN_STOP
+
+    def is_stop_pattern_analog(self, analog):
+        THRESHOLD = 150  # adjust if needed
+        black_count = sum(1 for v in analog if v < THRESHOLD)
+        return black_count >= 4
+        
+    def is_lost_pattern_analog(self, analog):
+        THRESHOLD = 150  # adjust if needed
+        black_count = sum(1 for v in analog if v < THRESHOLD)
+        return black_count == 0
     
     def _compute_line_error(self, analog_values):
         weights = [-2, -1, 0, 1, 2]
-    
+
+        # auto-normalization (no calibration needed)
         min_val = min(analog_values)
         max_val = max(analog_values)
-    
+
+        # no contrast ? no line
         if max_val - min_val < 50:
-            return None  # no contrast ? lost
-    
+            return None
+
         weighted_sum = 0
         total = 0
-    
+
         for i in range(5):
+            # invert so black = high weight
             normalized = (max_val - analog_values[i]) / (max_val - min_val)
             weighted_sum += normalized * weights[i]
             total += normalized
-    
+
         if total == 0:
             return None
-    
+
         return weighted_sum / total
 
     # ------------------------------------------------------------------
@@ -180,31 +193,32 @@ class Picar:
 
     def line_following(self, direction: str = "forward") -> bool:
         backward = direction == "backward"
-    
-        # None means line is lost (all weights zero)
+
         analog = self.line_follower.read_analog()
-        print(analog)
         error = self._compute_line_error(analog)
-        print(error)
-    
+
+        # ---------- LOST HANDLING WITH TOLERANCE ----------
         if error is None:
-            return self._handle_lost(backward)
-    
-        self._lost_counter = 0
-    
-        # Check stop pattern - still needs digital read
-        if self.is_stop_pattern():
-            return False
-    
+            self._lost_counter += 1
+
+            if self._lost_counter < self.LOST_PATIENCE:
+                error = self._last_error  # keep going same direction
+            else:
+                return self._handle_lost(backward)
+        else:
+            self._lost_counter = 0
+
+        # ---------- NORMAL CONTROL ----------
         if backward:
             error = -error
-    
+
         self._last_error = error
         angle = self.pid.compute(error)
         self._steer(angle)
-    
+
         self.accel_state = AccelState.ACCEL_BACKWARD if backward else AccelState.ACCEL_FORWARD
         self._set_speed(self.speed, backward=backward)
+
         return False
 
     def _handle_lost(self, backward: bool) -> bool:
@@ -244,11 +258,12 @@ def run():
                 case 0:
                     print("case 0")
                     
-                    #if car.is_stop_pattern():
-                      #  print("car stop")
-                      #  _gradual_stop(car)
-                        #time.sleep(10)
-                        #continue
+                    analog = car.line_follower.read_analog()
+
+                    if car.is_stop_pattern_analog(analog):
+                        _gradual_stop(car)
+                        time.sleep(10)
+                        continue
 
                     distance = car._read_distance()
                     if distance is not None and distance < car.OBSTACLE_DIST:
@@ -332,8 +347,10 @@ def run():
                 # -- 6: reverse to reacquire line ---------------------------
                 case 6:
                     print("case 6")
-                    status = car._read_line()
-                    if status != PATTERN_LOST and any(status):
+                    #status = car._read_line()
+                    analog = car.line_follower.read_analog()
+                    # status != PATTERN_LOST and any(status):
+                    if not car.is_lost_pattern_analog(analog):
                         car.stop()
                         time.sleep(0.5)
                         car.pid.reset()
