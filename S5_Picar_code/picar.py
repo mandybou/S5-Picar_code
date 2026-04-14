@@ -45,6 +45,7 @@ class PID:
             dt = 1e-6
 
         self._integral += error * dt
+        print("integral = ", self._integral)
         derivative = (error - self._prev_error) / dt
 
         output = self.kp * error + self.ki * self._integral + self.kd * derivative
@@ -53,23 +54,6 @@ class PID:
         self._prev_error = error
         self._prev_time = now
         return output
-
-
-# ---------------------------------------------------------------------------
-# Sensor patterns ? weighted position error
-# Sensors are indexed 0-4, left to right.
-# We map each known pattern to a position in [-2, +2]:
-#   negative = line is to the left  ? steer left
-#   positive = line is to the right ? steer right
-# ---------------------------------------------------------------------------
-
-PATTERN_STOP = {
-    (1, 1, 1, 1, 0),
-    (0, 1, 1, 1, 1),
-    (1, 1, 1, 1, 1),
-}
-
-PATTERN_LOST = (0, 0, 0, 0, 0)
 
 
 # ---------------------------------------------------------------------------
@@ -82,6 +66,7 @@ class Picar:
     STOP_DIST       = 10   # cm - full stop
     BYPASS_DIST     = 23   # cm - back up until here
     LOST_PATIENCE   = 20    # iterations before declaring truly lost
+    BRAKING_SCALE_CM = 13  # start here, adjust from observation
 
     def __init__(self):
         self.front_wheels     = front_wheels.Front_Wheels()
@@ -98,7 +83,7 @@ class Picar:
 
         # PID tuned for the hardware - adjust kp/ki/kd to taste
         #self.line_follower.calibrate() 
-        self.pid = PID(kp=18.0, ki=0.0, kd=0.05, output_limits=(-65, 65))
+        self.pid = PID(kp=22.5, ki=3.0, kd=0.05, output_limits=(-65, 65))
         self._last_reliable_error = 0.0
 
     # ------------------------------------------------------------------
@@ -116,6 +101,10 @@ class Picar:
     def stop(self):
         self.back_wheels.stop()
         self.speed = 0
+        
+    def _braking_distance(self) -> float:
+        """Estimate cm traveled during _gradual_stop at the current speed."""
+        return (self.speed / self.CRUISE_SPEED) * self.BRAKING_SCALE_CM
 
     def _steer(self, angle: float):
         """Translate a signed angle offset into a wheel angle (90 = straight)."""
@@ -209,13 +198,14 @@ class Picar:
 
         analog = self.line_follower.read_analog()
         error = self._compute_line_error(analog)
-
+        on_line = True
         if error is None:
             self._lost_counter += 1
             if self._lost_counter < self.LOST_PATIENCE:
                 #error = self._last_error * (1 + 0.3 * self._lost_counter)
-                error = float(np.clip(self._last_error * (1 + 0.3 * self._lost_counter), -200, 200))
-                #error = self._last_error
+                #error = float(np.clip(self._last_error * (1 + 0.3 * self._lost_counter), -300, 300))
+                on_line = False
+                error = self._last_error
                 print(error)
                 self._tick_sharp_turn(self._lost_counter, error)
             else:
@@ -226,10 +216,14 @@ class Picar:
 
         # ---------- NORMAL CONTROL ----------
         if backward:
+            print("backward")
             error = -error
 
         self._last_error = error
         angle = self.pid.compute(error)
+        if not on_line:
+          angle = (np.clip(angle * (1 + 0.3 * self._lost_counter), -65, 65))
+          
         self._steer(angle)
 
         self.accel_state = AccelState.ACCEL_BACKWARD if backward else AccelState.ACCEL_FORWARD
@@ -273,7 +267,7 @@ def run():
                 # -- 0: follow line -----------------------------------------
                 case 0:
                     print("case 0")
-                    
+                    car.target_speed = car.CRUISE_SPEED
                     analog = car.line_follower.read_analog()
 
                     if car.is_stop_pattern_analog(analog):
@@ -297,14 +291,15 @@ def run():
                     car.accel_state = AccelState.DECEL_FORWARD
                     car.target_speed = 19
                     print("case 1")
-
+                    print(car.speed)
                     distance = car._read_distance()
                     if distance is None:
                         state = 0
-                    elif distance <= car.STOP_DIST:
-                        car.stop()
-                        time.sleep(0.2)
-                        state = 2
+                    else:
+                        trigger_dist = car.STOP_DIST + car._braking_distance()
+                        if distance <= trigger_dist:
+                            _gradual_stop(car)
+                            state = 2  # skip straight to backup state
 
                 # -- 2: back up to BYPASS_DIST ------------------------------
                 case 2:
@@ -348,7 +343,12 @@ def run():
                         car._set_speed(car.speed)
                         time.sleep(0.2)
                         analog = car.line_follower.read_analog()
-                    car.pid.reset()
+                    #car.pid.reset()
+                    car.pid._integral = 0.0   # au lieu de reset()
+
+                    car.accel_state = AccelState.ACCEL_FORWARD
+                    car.target_speed = car.CRUISE_SPEED
+                    car._set_speed(car.speed)
                     state = 0
 
                 # -- 5: lost - slow down ------------------------------------
