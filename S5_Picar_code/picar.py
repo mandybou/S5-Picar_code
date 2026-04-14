@@ -213,7 +213,10 @@ class Picar:
         if error is None:
             self._lost_counter += 1
             if self._lost_counter < self.LOST_PATIENCE:
-                error = self._last_error * (1 + 0.3 * self._lost_counter)
+                #error = self._last_error * (1 + 0.3 * self._lost_counter)
+                error = float(np.clip(self._last_error * (1 + 0.3 * self._lost_counter), -200, 200))
+                #error = self._last_error
+                print(error)
                 self._tick_sharp_turn(self._lost_counter, error)
             else:
                 return self._handle_lost(backward)
@@ -300,11 +303,12 @@ def run():
                         state = 0
                     elif distance <= car.STOP_DIST:
                         car.stop()
-                        time.sleep(1)
+                        time.sleep(0.2)
                         state = 2
 
                 # -- 2: back up to BYPASS_DIST ------------------------------
                 case 2:
+                    print("case 2")
                     distance = car._read_distance()
                     if distance is None:
                         state = 0
@@ -320,14 +324,15 @@ def run():
                         car.target_speed = 19
                     else:
                         car.stop()
-                        time.sleep(1)
+                        time.sleep(0.2)
                         state = 3
 
                 # -- 3: swing right to clear obstacle -----------------------
                 case 3:
                     start = time.time()
                     while time.time() - start <= 2.5:
-                        car.speed = min(car.speed + 1, car.CRUISE_SPEED)
+                        print("case 3")
+                        car.speed = min(car.speed + 4, car.CRUISE_SPEED)
                         car._steer(30)
                         car._set_speed(car.speed)
                         time.sleep(0.2)
@@ -335,16 +340,14 @@ def run():
 
                 # -- 4: straighten until line reacquired --------------------
                 case 4:
-                    confirmed = 0
-                    while confirmed < 2:
+                    analog = car.line_follower.read_analog()
+                    while car.is_lost_pattern_analog(analog):
+                        print("case 4")
                         car.speed = max(car.speed - 1, car.CRUISE_SPEED - 3)
                         car._steer(-15)
                         car._set_speed(car.speed)
                         time.sleep(0.2)
-                        if car._read_line() not in (PATTERN_LOST,):
-                            confirmed += 1
-                        else:
-                            confirmed = 0
+                        analog = car.line_follower.read_analog()
                     car.pid.reset()
                     state = 0
 
@@ -380,8 +383,9 @@ def run():
 
 
 def _gradual_stop(car: Picar):
-    for _ in range(2):
-        car.speed = max(car.speed - 2, 0)
+    diff = (car.speed - 10) // 4
+    for _ in range(4):
+        car.speed = max(car.speed - diff, 0)
         car._set_speed(car.speed)
         time.sleep(0.2)
     car.stop()
