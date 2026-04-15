@@ -7,7 +7,7 @@ from SunFounder_Line_Follower import Line_Follower
 import back_wheels
 import front_wheels
 import ultrasonic
-
+import math
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -319,19 +319,83 @@ def run():
                         car.target_speed = 19
                     else:
                         car.stop()
-                        time.sleep(0.2)
+                        #time.sleep(0.2)
                         state = 3
+                        
+                case 3:
+                  duration = 5.0
+                  half = duration / 2
+              
+                  rise = 0.6
+                  fall = 0.6
+                  max_angle = 30
+              
+                  start = time.time()
+              
+                  while True:
+                      t = time.time() - start
+                      if t > duration:
+                          break
+              
+                      # determine si on est dans la premiere ou deuxieme moitie
+                      if t < half:
+                          local_t = t
+                          sign = 1
+                      else:
+                          local_t = t - half
+                          sign = -1
+              
+                      # trapeze lisse
+                      if local_t < rise:
+                          x = local_t / rise
+                          s = 3*x*x - 2*x*x*x
+                          angle = max_angle * s
+              
+                      elif local_t < (half - fall):
+                          angle = max_angle
+              
+                      else:
+                          x = (local_t - (half - fall)) / fall
+                          s = 3*x*x - 2*x*x*x
+                          angle = max_angle * (1 - s)
+                          analog = car.line_follower.read_analog()
+                          print("dernier")
+                          #if not car.is_lost_pattern_analog(analog):
+                           # break
+              
+                      angle *= sign
+              
+                      print(f"angle: {angle:.2f}")
+              
+                      car.speed = min(car.speed + 2, car.CRUISE_SPEED)
+                      car.stop()
+                      time.sleep(3)
+                      car._steer(angle)
+                      car._set_speed(car.speed)
+              
+                      time.sleep(0.05)
+              
+                  #car.stop()
+                  #time.sleep(5)
+                  car.pid._integral = 0.0
+                  car.accel_state = AccelState.ACCEL_FORWARD
+                  car.target_speed = car.CRUISE_SPEED
+                  state = 0
+                  
+
+
 
                 # -- 3: swing right to clear obstacle -----------------------
-                case 3:
-                    start = time.time()
-                    while time.time() - start <= 2.5:
-                        print("case 3")
-                        car.speed = min(car.speed + 4, car.CRUISE_SPEED)
-                        car._steer(30)
-                        car._set_speed(car.speed)
-                        time.sleep(0.2)
-                    state = 4
+                #case 3:
+                #    start = time.time()
+                #    while time.time() - start <= 1.8:
+                #        print("case 3")
+                #        car.speed = min(car.speed + 4, car.CRUISE_SPEED)
+                #        car._steer(30)
+                #        car._set_speed(car.speed)
+                #        time.sleep(0.2)
+                #    angle = 30
+                #    state = 4
 
                 # -- 4: straighten until line reacquired --------------------
                 case 4:
@@ -339,7 +403,9 @@ def run():
                     while car.is_lost_pattern_analog(analog):
                         print("case 4")
                         car.speed = max(car.speed - 1, car.CRUISE_SPEED - 3)
-                        car._steer(-15)
+                        if angle > -20:
+                          angle = angle -5
+                        car._steer(angle)
                         car._set_speed(car.speed)
                         time.sleep(0.2)
                         analog = car.line_follower.read_analog()
