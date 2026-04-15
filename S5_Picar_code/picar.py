@@ -65,7 +65,7 @@ class Picar:
     OBSTACLE_DIST   = 30   # cm - start slowing
     STOP_DIST       = 10   # cm - full stop
     BYPASS_DIST     = 23   # cm - back up until here
-    LOST_PATIENCE   = 20    # iterations before declaring truly lost
+    LOST_PATIENCE   = 40    # iterations before declaring truly lost
     BRAKING_SCALE_CM = 13  # start here, adjust from observation
 
     def __init__(self):
@@ -83,7 +83,7 @@ class Picar:
 
         # PID tuned for the hardware - adjust kp/ki/kd to taste
         #self.line_follower.calibrate() 
-        self.pid = PID(kp=22.5, ki=3.0, kd=0.05, output_limits=(-65, 65))
+        self.pid = PID(kp=9.0, ki=1.0, kd=0.05, output_limits=(-65, 65))
         self._last_reliable_error = 0.0
 
     # ------------------------------------------------------------------
@@ -223,6 +223,7 @@ class Picar:
         angle = self.pid.compute(error)
         if not on_line:
           angle = (np.clip(angle * (1 + 0.3 * self._lost_counter), -65, 65))
+          print(angle)
           
         self._steer(angle)
 
@@ -318,84 +319,64 @@ def run():
                         car.accel_state = AccelState.DECEL_BACKWARD
                         car.target_speed = 19
                     else:
-                        car.stop()
+                        car._gradual_stop()
                         #time.sleep(0.2)
                         state = 3
                         
-                case 3:
-                  duration = 5.0
-                  half = duration / 2
-              
-                  rise = 0.6
-                  fall = 0.6
-                  max_angle = 30
-              
-                  start = time.time()
-              
-                  while True:
-                      t = time.time() - start
-                      if t > duration:
-                          break
-              
-                      # determine si on est dans la premiere ou deuxieme moitie
-                      if t < half:
-                          local_t = t
-                          sign = 1
-                      else:
-                          local_t = t - half
-                          sign = -1
-              
-                      # trapeze lisse
-                      if local_t < rise:
-                          x = local_t / rise
-                          s = 3*x*x - 2*x*x*x
-                          angle = max_angle * s
-              
-                      elif local_t < (half - fall):
-                          angle = max_angle
-              
-                      else:
-                          x = (local_t - (half - fall)) / fall
-                          s = 3*x*x - 2*x*x*x
-                          angle = max_angle * (1 - s)
-                          analog = car.line_follower.read_analog()
-                          print("dernier")
-                          #if not car.is_lost_pattern_analog(analog):
-                           # break
-              
-                      angle *= sign
-              
-                      print(f"angle: {angle:.2f}")
-              
-                      car.speed = min(car.speed + 2, car.CRUISE_SPEED)
-                      car.stop()
-                      time.sleep(3)
-                      car._steer(angle)
-                      car._set_speed(car.speed)
-              
-                      time.sleep(0.05)
-              
-                  #car.stop()
-                  #time.sleep(5)
-                  car.pid._integral = 0.0
-                  car.accel_state = AccelState.ACCEL_FORWARD
-                  car.target_speed = car.CRUISE_SPEED
-                  state = 0
-                  
+#                case 3:
+#                  t1 = 0.0
+#                  t2 = 2.0
+#                  t3 = 2.5
+#                  t4 = 5.0
+#                  t_final = t4 + 1.0
+#                  max_angle = 30
+#              
+#                  def smoothstep(t_start, t_end, x):
+#                      k = max(0.0, min(1.0, (x - t_start) / (t_end - t_start)))
+#                      return k * k * (3 - 2 * k)
+#              
+#                  def get_angle(t, sign):
+#                      if 0 < t < t2:
+#                          s = -smoothstep(t1, t2, t)
+#                      elif t2 <= t <= t4:
+#                          s = -(1.0 - smoothstep(t3, t4, t))
+#                      else:
+#                          s = 0.0
+#                      return s * max_angle * sign
+#              
+#                  for sign in [1, -1]:  # Segment 1: gauche?droite, Segment 2: droite?gauche
+#                      start = time.time()
+#                      while True:
+#                          t = time.time() - start
+#                          if t > t_final:
+#                              break
+#              
+#                          angle = get_angle(t, sign)
+#              
+#                          print(f"[sign={sign}] t: {t:.2f} | angle: {angle:.2f}")
+#                          car.speed = min(car.speed + 2, car.CRUISE_SPEED)
+#                          car._steer(angle)
+#                          car._set_speed(car.speed)
+#                          time.sleep(0.05)
+#              
+#                  car.pid._integral = 0.0
+#                  car.accel_state = AccelState.ACCEL_FORWARD
+#                  car.target_speed = car.CRUISE_SPEED
+#                  state = 0
 
 
 
                 # -- 3: swing right to clear obstacle -----------------------
-                #case 3:
-                #    start = time.time()
-                #    while time.time() - start <= 1.8:
-                #        print("case 3")
-                #        car.speed = min(car.speed + 4, car.CRUISE_SPEED)
-                #        car._steer(30)
-                #        car._set_speed(car.speed)
-                #        time.sleep(0.2)
-                #    angle = 30
-                #    state = 4
+                case 3:
+                    start = time.time()
+                    while time.time() - start <= 2.2:
+                        print("case 3")
+                        car.speed = min(car.speed + 4, car.CRUISE_SPEED)
+                        car._steer(-30)
+                        car._set_speed(car.speed)
+                        time.sleep(0.2)
+                    angle = 30
+                    state = 4
 
                 # -- 4: straighten until line reacquired --------------------
                 case 4:
@@ -403,8 +384,8 @@ def run():
                     while car.is_lost_pattern_analog(analog):
                         print("case 4")
                         car.speed = max(car.speed - 1, car.CRUISE_SPEED - 3)
-                        if angle > -20:
-                          angle = angle -5
+                        if angle < 20:
+                          angle = angle + 5
                         car._steer(angle)
                         car._set_speed(car.speed)
                         time.sleep(0.2)
