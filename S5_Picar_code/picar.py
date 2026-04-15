@@ -319,80 +319,69 @@ def run():
                         car.accel_state = AccelState.DECEL_BACKWARD
                         car.target_speed = 19
                     else:
-                        car._gradual_stop()
+                        #car._gradual_stop(self)
+                        car.stop()
                         #time.sleep(0.2)
                         state = 3
-                        
-#                case 3:
-#                  t1 = 0.0
-#                  t2 = 2.0
-#                  t3 = 2.5
-#                  t4 = 5.0
-#                  t_final = t4 + 1.0
-#                  max_angle = 30
-#              
-#                  def smoothstep(t_start, t_end, x):
-#                      k = max(0.0, min(1.0, (x - t_start) / (t_end - t_start)))
-#                      return k * k * (3 - 2 * k)
-#              
-#                  def get_angle(t, sign):
-#                      if 0 < t < t2:
-#                          s = -smoothstep(t1, t2, t)
-#                      elif t2 <= t <= t4:
-#                          s = -(1.0 - smoothstep(t3, t4, t))
-#                      else:
-#                          s = 0.0
-#                      return s * max_angle * sign
-#              
-#                  for sign in [1, -1]:  # Segment 1: gauche?droite, Segment 2: droite?gauche
-#                      start = time.time()
-#                      while True:
-#                          t = time.time() - start
-#                          if t > t_final:
-#                              break
-#              
-#                          angle = get_angle(t, sign)
-#              
-#                          print(f"[sign={sign}] t: {t:.2f} | angle: {angle:.2f}")
-#                          car.speed = min(car.speed + 2, car.CRUISE_SPEED)
-#                          car._steer(angle)
-#                          car._set_speed(car.speed)
-#                          time.sleep(0.05)
-#              
-#                  car.pid._integral = 0.0
-#                  car.accel_state = AccelState.ACCEL_FORWARD
-#                  car.target_speed = car.CRUISE_SPEED
-#                  state = 0
-
 
 
                 # -- 3: swing right to clear obstacle -----------------------
                 case 3:
                     start = time.time()
-                    while time.time() - start <= 2.2:
+                
+                    smooth_angle = 0
+                    smooth_speed = car.speed
+                
+                    while time.time() - start <= 2.9:
                         print("case 3")
-                        car.speed = min(car.speed + 4, car.CRUISE_SPEED)
-                        car._steer(-30)
-                        car._set_speed(car.speed)
-                        time.sleep(0.2)
-                    angle = 30
+                
+                        target_angle = -30
+                        target_speed = min(car.speed + 4, car.CRUISE_SPEED)
+                
+                        # SMOOTHING
+                        smooth_angle += 0.4 * (target_angle - smooth_angle)
+                        smooth_speed += 0.2 * (target_speed - smooth_speed)
+                
+                        car._steer(smooth_angle)
+                        car._set_speed(int(smooth_speed))
+                
+                        time.sleep(0.05) 
+                
+                    angle = smooth_angle 
                     state = 4
+
 
                 # -- 4: straighten until line reacquired --------------------
                 case 4:
                     analog = car.line_follower.read_analog()
+
+                    smooth_angle = angle
+                    smooth_speed = car.speed
+                
                     while car.is_lost_pattern_analog(analog):
                         print("case 4")
-                        car.speed = max(car.speed - 1, car.CRUISE_SPEED - 3)
-                        if angle < 20:
-                          angle = angle + 5
-                        car._steer(angle)
-                        car._set_speed(car.speed)
-                        time.sleep(0.2)
+                
+                        # logique existante conservee
+                        target_speed = max(car.speed - 1, car.CRUISE_SPEED - 3)
+                
+#                        if angle < 20:
+#                            angle += 5
+#                
+#                        target_angle = angle
+                        target_angle = 25
+                
+                        # SMOOTHING
+                        smooth_angle += 0.4 * (target_angle - smooth_angle)
+                        smooth_speed += 0.15 * (target_speed - smooth_speed)
+                
+                        car._steer(smooth_angle)
+                        car._set_speed(int(smooth_speed))
+                
+                        time.sleep(0.05)
+                
                         analog = car.line_follower.read_analog()
-                    #car.pid.reset()
-                    car.pid._integral = 0.0   # au lieu de reset()
-
+                
+                    car.pid._integral = 0.0
                     car.accel_state = AccelState.ACCEL_FORWARD
                     car.target_speed = car.CRUISE_SPEED
                     car._set_speed(car.speed)
