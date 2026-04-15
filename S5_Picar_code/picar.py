@@ -83,8 +83,8 @@ class Picar:
 
         # PID tuned for the hardware - adjust kp/ki/kd to taste
         #self.line_follower.calibrate() 
-        #self.pid = PID(kp=9.0, ki=1.0, kd=0.05, output_limits=(-65, 65))
-        self.pid = PID(kp=12.0, ki=0.2, kd=1.2, output_limits=(-65, 65))
+        self.pid = PID(kp=9.0, ki=1.0, kd=0.05, output_limits=(-65, 65))
+        #self.pid = PID(kp=12.0, ki=1.2, kd=0.05, output_limits=(-65, 65))
         self._last_reliable_error = 0.0
 
     # ------------------------------------------------------------------
@@ -185,6 +185,8 @@ class Picar:
             normalized = (max_val - analog_values[i]) / (max_val - min_val)
             weighted_sum += normalized * weights[i]
             total += normalized
+        
+       # print("total:", total)
 
         if total == 0:
             return None
@@ -200,15 +202,15 @@ class Picar:
 
         analog = self.line_follower.read_analog()
         error = self._compute_line_error(analog)
+        
+        print("Erreur ", error)
         on_line = True
         if error is None:
             self._lost_counter += 1
             if self._lost_counter < self.LOST_PATIENCE:
-                #error = self._last_error * (1 + 0.3 * self._lost_counter)
-                #error = float(np.clip(self._last_error * (1 + 0.3 * self._lost_counter), -300, 300))
                 on_line = False
                 error = self._last_error
-                print(error)
+                print("Erreur lost = ", error)
                 self._tick_sharp_turn(self._lost_counter, error)
             else:
                 return self._handle_lost(backward)
@@ -224,8 +226,8 @@ class Picar:
         self._last_error = error
         angle = self.pid.compute(error)
         if not on_line:
-          angle = (np.clip(angle * (1 + 0.3 * self._lost_counter), -70, 70))
-          print(angle)
+          angle = (np.clip(angle * (1 + 0.3 * self._lost_counter), -80, 80))
+          #print(angle)
           
         self._steer(angle)
 
@@ -243,7 +245,7 @@ class Picar:
 
         # Keep turning harder in the last known direction
         extrapolated = self._last_error * (1 + 0.3 * self._lost_counter)
-        extrapolated = float(np.clip(extrapolated, -65, 65))
+        extrapolated = float(np.clip(extrapolated, -80, 80))
         if backward:
             extrapolated = -extrapolated
 
@@ -294,14 +296,14 @@ def run():
                     car.accel_state = AccelState.DECEL_FORWARD
                     car.target_speed = 19
                     print("case 1")
-                    print(car.speed)
+                    #print(car.speed)
                     distance = car._read_distance()
                     if distance is None:
                         state = 0
                     else:
                         trigger_dist = car.STOP_DIST + car._braking_distance()
                         if distance <= trigger_dist:
-                            
+                            car._steer(0)
                             _gradual_stop(car)
                             state = 2  # skip straight to backup state
 
@@ -315,12 +317,12 @@ def run():
                     trigger_dist = car.OBSTACLE_DIST - car._braking_distance() + 3
                     print("trigger dist", trigger_dist)
                     if distance < car.BYPASS_DIST:
-                         car.line_following("backward")
+                         #car.line_following("backward")
                          car.accel_state = AccelState.ACCEL_BACKWARD
                          car.target_speed = car.CRUISE_SPEED - 5
-                    elif distance >= trigger_dist:
+                    elif distance >= (trigger_dist + 3):
                             car.accel_state = AccelState.DECEL_BACKWARD
-                            print("trigger dist", trigger_dist)
+                            #("trigger dist", trigger_dist)
                             _gradual_stop(car, True)
                             state = 3
                     #elif distance <= 30:
@@ -345,7 +347,7 @@ def run():
                     smooth_angle = 0
                     smooth_speed = car.speed
                 
-                    while time.time() - start <= 3.1:
+                    while time.time() - start <= 3.3:
                         print("case 3")
                 
                         target_angle = -30
@@ -385,7 +387,7 @@ def run():
                 
                         # SMOOTHING
                         smooth_angle += 0.4 * (target_angle - smooth_angle)
-                        smooth_speed += 0.18 * (target_speed - smooth_speed)
+                        smooth_speed += 0.05 * (target_speed - smooth_speed)
                 
                         car._steer(smooth_angle)
                         car._set_speed(int(smooth_speed))
@@ -428,7 +430,8 @@ def run():
                         car._set_speed(car.speed, backward=True)
 
     except KeyboardInterrupt:
-        car.stop()
+        #car.stop()
+        _gradual_stop(car)
 
 
 def _gradual_stop(car: Picar, backward=False):
