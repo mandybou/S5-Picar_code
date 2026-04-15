@@ -61,7 +61,7 @@ class PID:
 # ---------------------------------------------------------------------------
 
 class Picar:
-    CRUISE_SPEED    = 35   # normal forward cruising speed
+    CRUISE_SPEED    = 33   # normal forward cruising speed
     OBSTACLE_DIST   = 30   # cm - start slowing
     STOP_DIST       = 10   # cm - full stop
     BYPASS_DIST     = 23   # cm - back up until here
@@ -83,7 +83,8 @@ class Picar:
 
         # PID tuned for the hardware - adjust kp/ki/kd to taste
         #self.line_follower.calibrate() 
-        self.pid = PID(kp=9.0, ki=1.0, kd=0.05, output_limits=(-65, 65))
+        #self.pid = PID(kp=9.0, ki=1.0, kd=0.05, output_limits=(-65, 65))
+        self.pid = PID(kp=12.0, ki=0.2, kd=1.2, output_limits=(-65, 65))
         self._last_reliable_error = 0.0
 
     # ------------------------------------------------------------------
@@ -113,6 +114,7 @@ class Picar:
     def _tick_sharp_turn(self, lost_counter, error):
         # Optional: implement sharper turns by temporarily reducing speed on one wheel
         print("sharp_turn")
+        #diff = 2 * lost_counter
         if error > 0:
             self.back_wheels.set_speed_individual(
                 self.speed - lost_counter, self.speed + lost_counter
@@ -165,7 +167,7 @@ class Picar:
         return black_count == 0
     
     def _compute_line_error(self, analog_values):
-        weights = [-2, -1, 0, 1, 2]
+        weights = [-3.0, -1.0, 0.0, 1.0, 3.0]
 
         # auto-normalization (no calibration needed)
         min_val = min(analog_values)
@@ -222,7 +224,7 @@ class Picar:
         self._last_error = error
         angle = self.pid.compute(error)
         if not on_line:
-          angle = (np.clip(angle * (1 + 0.3 * self._lost_counter), -65, 65))
+          angle = (np.clip(angle * (1 + 0.3 * self._lost_counter), -70, 70))
           print(angle)
           
         self._steer(angle)
@@ -299,6 +301,7 @@ def run():
                     else:
                         trigger_dist = car.STOP_DIST + car._braking_distance()
                         if distance <= trigger_dist:
+                            
                             _gradual_stop(car)
                             state = 2  # skip straight to backup state
 
@@ -309,20 +312,30 @@ def run():
                     if distance is None:
                         state = 0
                         continue
-
+                    trigger_dist = car.OBSTACLE_DIST - car._braking_distance() + 3
+                    print("trigger dist", trigger_dist)
                     if distance < car.BYPASS_DIST:
-                        car.line_following("backward")
-                        car.accel_state = AccelState.ACCEL_BACKWARD
-                        car.target_speed = car.CRUISE_SPEED - 5
-                    elif distance <= 30:
-                        car.line_following("backward")
-                        car.accel_state = AccelState.DECEL_BACKWARD
-                        car.target_speed = 19
-                    else:
+                         car.line_following("backward")
+                         car.accel_state = AccelState.ACCEL_BACKWARD
+                         car.target_speed = car.CRUISE_SPEED - 5
+                    elif distance >= trigger_dist:
+                            car.accel_state = AccelState.DECEL_BACKWARD
+                            print("trigger dist", trigger_dist)
+                            _gradual_stop(car, True)
+                            state = 3
+                    #elif distance <= 30:
+                        #car.line_following("backward")
+                        #car.accel_state = AccelState.DECEL_BACKWARD
+                        #car.target_speed = 15
+                    #else:
                         #car._gradual_stop(self)
-                        car.stop()
+                        #car.stop()
+                        #trigger_dist = car.OBSTACLE_DIST + car._braking_distance()
+                        #if distance >= trigger_dist:
+                         #   _gradual_stop(car)
                         #time.sleep(0.2)
-                        state = 3
+                        #state = 3
+
 
 
                 # -- 3: swing right to clear obstacle -----------------------
@@ -332,7 +345,7 @@ def run():
                     smooth_angle = 0
                     smooth_speed = car.speed
                 
-                    while time.time() - start <= 2.9:
+                    while time.time() - start <= 3.1:
                         print("case 3")
                 
                         target_angle = -30
@@ -340,7 +353,7 @@ def run():
                 
                         # SMOOTHING
                         smooth_angle += 0.4 * (target_angle - smooth_angle)
-                        smooth_speed += 0.2 * (target_speed - smooth_speed)
+                        smooth_speed += 0.18 * (target_speed - smooth_speed)
                 
                         car._steer(smooth_angle)
                         car._set_speed(int(smooth_speed))
@@ -362,17 +375,17 @@ def run():
                         print("case 4")
                 
                         # logique existante conservee
-                        target_speed = max(car.speed - 1, car.CRUISE_SPEED - 3)
+                        target_speed = max(car.speed + 2, car.CRUISE_SPEED)
                 
 #                        if angle < 20:
 #                            angle += 5
 #                
 #                        target_angle = angle
-                        target_angle = 25
+                        target_angle = 30
                 
                         # SMOOTHING
                         smooth_angle += 0.4 * (target_angle - smooth_angle)
-                        smooth_speed += 0.15 * (target_speed - smooth_speed)
+                        smooth_speed += 0.18 * (target_speed - smooth_speed)
                 
                         car._steer(smooth_angle)
                         car._set_speed(int(smooth_speed))
@@ -410,7 +423,7 @@ def run():
                         car.accel_state = AccelState.ACCEL_BACKWARD
                         car.target_speed = 22
                         # Use last *reliable* error, negated for reverse direction
-                        angle = float(np.clip(-car._last_reliable_error * 18, -65, 65))
+                        angle = float(np.clip(-car._last_reliable_error * 18, -70, 70))
                         car._steer(angle)
                         car._set_speed(car.speed, backward=True)
 
@@ -418,12 +431,15 @@ def run():
         car.stop()
 
 
-def _gradual_stop(car: Picar):
-    diff = (car.speed - 10) // 4
-    for _ in range(4):
+def _gradual_stop(car: Picar, backward=False):
+    steps = 4
+    diff = max(car.speed // steps, 1)  # evite diff = 0
+
+    for _ in range(steps):
         car.speed = max(car.speed - diff, 0)
-        car._set_speed(car.speed)
+        car._set_speed(car.speed, backward=backward)
         time.sleep(0.2)
+
     car.stop()
 
 
